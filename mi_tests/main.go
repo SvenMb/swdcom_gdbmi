@@ -12,7 +12,13 @@ import (
 func main() {
 
 	// start a new instance and pipe the target output to stdout
-	gdb, _ := gdb.NewCmd( []string{"gdb-multiarch", "--quiet", "--interpreter=mi2"}, nil)
+	gdb, err := gdb.NewCmd( []string{"gdb-multiarch", "--quiet", "--interpreter=mi2"}, nil)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	fmt.Println("waiting for swdcom to start...")
 	// fmt.Println(gdb)
 	// go io.Copy(os.Stdout, gdb)
 
@@ -24,11 +30,30 @@ func main() {
 
 	// fmt.Println(gdb.Send("interpreter-exec console \"info reg\""))
 
-	gdb.Send("exec-run")
-	time.Sleep(1 * time.Second)
+	result,err := gdb.Send("exec-run")
+	// fmt.Println(result)
+	// fmt.Println(err)
+	if (err != nil || result["class"] == "error") {
+		fmt.Println("Error executing, probably openocd, st-util not started or not connected?")
+		fmt.Println("GDB says (often misleading):")
+		fmt.Println(result["payload"].(map[string]interface{})["msg"])
+		fmt.Println("Error: ",err)
+		return
+	}
+
+	time.Sleep(time.Second / 2)
 	gdb.Interrupt()
 
-	result,_ := gdb.Send("data-list-register-values","d","11")
+	result,err = gdb.Send("data-list-register-values","d","11")
+	// fmt.Println(result)
+	// fmt.Println(err)
+	if (err != nil || result["class"] == "error") {
+		fmt.Println("Error reading r11, probably wrong gdb-architecture?")
+		fmt.Println("GDB says (often misleading):")
+		fmt.Println(result["payload"].(map[string]interface{})["msg"])
+		fmt.Println("Error: ",err)
+		return
+	}
 
 	R11,_ := strconv.Atoi(result["payload"].(map[string]interface{})["register-values"].([]interface{})[0].(map[string]interface{})["value"].(string))
 	rxb := R11+4
